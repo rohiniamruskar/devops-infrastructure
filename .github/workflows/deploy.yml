@@ -1,0 +1,41 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t devops-backend:${{ github.sha }} ./app
+          docker tag devops-backend:${{ github.sha }} devops-backend:latest
+
+      - name: Load image into Kind
+        run: |
+          kind load docker-image devops-backend:${{ github.sha }} \
+            --name devops-challenge
+
+      - name: Update Kubernetes manifest
+        run: |
+          sed -i "s|image: devops-backend:v1|image: devops-backend:${{ github.sha }}|" k8s/backend.yaml
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/backend \
+            -n devops-challenge \
+            --timeout=120s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n devops-challenge
+          kubectl get svc -n devops-challenge
