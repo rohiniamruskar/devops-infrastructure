@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify,render_template
 import os
 import psycopg2
 
@@ -23,10 +23,7 @@ def get_db_connection():
 
 @app.route("/")
 def home():
-    return jsonify({
-        "application": "DevOps Challenge",
-        "status": "running"
-    })
+    return render_template("index.html")
 
 
 @app.route("/health")
