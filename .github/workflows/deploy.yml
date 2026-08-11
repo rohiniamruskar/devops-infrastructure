@@ -7,35 +7,59 @@ on:
 
 jobs:
   deploy:
+
     runs-on: self-hosted
 
     steps:
 
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker image
         run: |
-          docker build -t devops-backend:${{ github.sha }} ./app
-          docker tag devops-backend:${{ github.sha }} devops-backend:latest
+          docker build \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/devops-backend:${{ github.sha }} \
+            ./app
 
-      - name: Load image into Kind
+      - name: Push Docker image
         run: |
-          kind load docker-image devops-backend:${{ github.sha }} \
-            --name devops-challenge
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/devops-backend:${{ github.sha }}
 
-      - name: Update Kubernetes manifest
+      - name: Deploy namespace
         run: |
-          sed -i "s|image: devops-backend:v1|image: devops-backend:${{ github.sha }}|" k8s/backend.yaml
+          kubectl apply -f k8s/namespace.yaml
 
-      - name: Deploy to Kubernetes
+      - name: Deploy PostgreSQL
         run: |
-          kubectl apply -f k8s/
-          kubectl rollout status deployment/backend \
+          kubectl apply -f k8s/postgres.yaml
+          kubectl apply -f k8s/postgres-service.yaml
+
+      - name: Update backend image
+        run: |
+          kubectl set image deployment/backend \
+            backend=${{ secrets.DOCKERHUB_USERNAME }}/devops-backend:${{ github.sha }} \
+            -n devops-challenge \
+            --record=false
+
+      - name: Deploy backend service
+        run: |
+          kubectl apply -f k8s/backend-service.yaml
+
+      - name: Wait for backend rollout
+        run: |
+          kubectl rollout status \
+            deployment/backend \
             -n devops-challenge \
             --timeout=120s
 
       - name: Verify deployment
         run: |
           kubectl get pods -n devops-challenge
-          kubectl get svc -n devops-challenge
+          kubectl get services -n devops-challenge
