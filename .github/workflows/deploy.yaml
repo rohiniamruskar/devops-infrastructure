@@ -47,11 +47,11 @@ jobs:
         run: |
           kubectl apply -f k8s/backend.yaml
 
-      - name: Update backend image
+      - name: Deploy backend
         run: |
-          kubectl set image deployment/backend \
-            backend=${{ secrets.DOCKERHUB_USERNAME }}/devops-backend:${{ github.sha }} \
-            -n devops-challenge
+          sed -i "s|rohiniamruskar/devops-backend:latest|${{ secrets.DOCKERHUB_USERNAME }}/devops-backend:${{ github.sha }}|g" k8s/backend.yaml
+          
+          kubectl apply -f k8s/backend.yaml
 
       - name: Wait for PostgreSQL
         run: |
